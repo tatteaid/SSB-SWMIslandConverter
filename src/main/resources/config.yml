@@ -1,0 +1,6 @@
+# What ASWM data source will the converted islands save to?
+# Options: mysql, mongodb, or file
+data_source: "file"
+
+# Toggles whether you will receive updates on the island conversion process
+output_information: true
