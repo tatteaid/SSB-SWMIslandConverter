@@ -103,7 +103,9 @@ public class ConverterTask implements Runnable {
                     int chunkMinZ = Integer.MAX_VALUE;
                     int chunkMaxZ = Integer.MIN_VALUE;
 
-                    List<Chunk> chunks = island.getAllChunks(environment, true, true);
+                    final List<Chunk> chunks = island.getAllChunks(environment, true, true);
+
+                    // the island is completely empty, we don't need to copy anything over
                     if (chunks.size() == 0) continue;
 
                     List<Integer> xChunkCoords = new ArrayList<>();
@@ -123,11 +125,9 @@ public class ConverterTask implements Runnable {
                         chunkMaxZ = Math.max(zValue, chunkMaxZ);
                     }
 
-                    // the minimum and maximum vertexes of all the island chunks
-                    // we already accounted for chunk sizes of 1, and this logic accounts for chunk sizes of 1 (where minX == maxX and minZ == maxZ)
-                    // if this is the case, we just need to get the other side of the chunk for both the maxX and maxZ values
-                    // we can do so by doing (chunkMaxX << 4) | 15 and (chunkMaxZ << 4) | 15, this will give us the opposite side
-                    // this also accounts for height differences in the overworld compared to the nether & end
+                    // the minimum and maximum corners of all the island chunks
+                    // we just need to get the two sides of all the island chunks, one at a max point and one at a min point
+                    // this also will account for height differences in the overworld compared to the nether & end
                     final BlockVector3 minimum;
                     final BlockVector3 maximum;
 
@@ -175,16 +175,16 @@ public class ConverterTask implements Runnable {
                     } finally {
                         clipboard.close();
                         editSession.close();
-
-                        // block the runnable and forcefully unload the slime world since we have pasted the chunks over to the slime world
-                        final CompletableFuture<Void> unloadFuture = CompletableFuture.runAsync(() -> {
-                            Bukkit.unloadWorld(islandWorldName, true);
-                            instance.outputInformation("Successfully unloaded world to save memory: " + islandWorldName);
-                        }, syncExecutor);
-                        unloadFuture.join();
                     }
                 } catch (IOException | WorldAlreadyExistsException exception) {
-                    instance.getLogger().log(Level.SEVERE, "Could not create empty world during conversion task: " + island.getName(), exception);
+                    instance.getLogger().log(Level.SEVERE, "Could not create an empty world during the conversion task: " + island.getName(), exception);
+                } finally {
+                    // block the runnable and forcefully unload the slime world to save our precious memory
+                    final CompletableFuture<Void> unloadFuture = CompletableFuture.runAsync(() -> {
+                        if (Bukkit.unloadWorld(islandWorldName, true))
+                            instance.outputInformation("Successfully unloaded world to save memory: " + islandWorldName);
+                    }, syncExecutor);
+                    unloadFuture.join();
                 }
             }
 
