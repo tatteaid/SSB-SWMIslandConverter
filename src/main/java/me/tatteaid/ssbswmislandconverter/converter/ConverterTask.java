@@ -15,7 +15,6 @@ import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
-import com.sk89q.worldedit.session.ClipboardHolder;
 import me.tatteaid.ssbswmislandconverter.IslandConverterModule;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -144,10 +143,10 @@ public class ConverterTask implements Runnable {
                     final CuboidRegion cuboidRegion = new CuboidRegion(world, minimum, maximum);
                     final Clipboard clipboard = new BlockArrayClipboard(cuboidRegion);
 
-                    // build an EditSession for the target world
-                    // this is where we want to paste our island at
-                    final EditSession editSession = WorldEdit.getInstance().newEditSessionBuilder()
-                            .world(FaweAPI.getWorld(slimeWorld.getName()))
+                    // build an EditSession for the main island world
+                    // this is where we want to copy our island from
+                    final EditSession fromSession = WorldEdit.getInstance().newEditSessionBuilder()
+                            .world(world)
                             .fastMode(true)
                             .changeSetNull()
                             .limitUnlimited()
@@ -157,24 +156,18 @@ public class ConverterTask implements Runnable {
                     try {
                         // copy the island that is in island grid world
                         clipboard.setOrigin(cuboidRegion.getCenter().toBlockPoint().withY(cuboidRegion.getMinimumY()));
-                        ForwardExtentCopy copy = new ForwardExtentCopy(world, cuboidRegion, clipboard, cuboidRegion.getMinimumPoint());
+                        final ForwardExtentCopy copy = new ForwardExtentCopy(fromSession, cuboidRegion, clipboard, cuboidRegion.getMinimumPoint());
                         copy.setCopyingEntities(true);
                         copy.setCopyingBiomes(true);
                         Operations.complete(copy);
 
                         // paste the island in the new SlimeWorld
-                        Operations.complete(new ClipboardHolder(clipboard)
-                                .createPaste(editSession)
-                                .to(BlockVector3.at(0, environment == World.Environment.NORMAL ? OVERWORLD_MIN_Y : OTHER_MIN_Y, 0))
-                                .ignoreAirBlocks(true)
-                                .copyEntities(true)
-                                .copyBiomes(true)
-                                .build());
+                        clipboard.paste(FaweAPI.getWorld(slimeWorld.getName()), BlockVector3.at(0, environment == World.Environment.NORMAL ? OVERWORLD_MIN_Y : OTHER_MIN_Y, 0), false, true, true);
 
                         instance.outputInformation("Successfully copy and pasted island: " + islandWorldName);
                     } finally {
                         clipboard.close();
-                        editSession.close();
+                        fromSession.close();
                     }
                 } catch (IOException | WorldAlreadyExistsException exception) {
                     instance.getLogger().log(Level.SEVERE, "Could not create an empty world during the conversion task: " + island.getName(), exception);
